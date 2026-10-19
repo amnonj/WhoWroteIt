@@ -4,6 +4,7 @@ import zipfile as zf
 from urllib.request import urlopen
 import io
 import datetime
+from collections import Counter
 
 POSTS_URL = 'https://github.com/jschler/ILElectionData/raw/refs/heads/main/dataset/posts/AllPosts201811_202003.csv.zip'
 CSV_FILENAME = 'AllPosts201811_202003.csv'
@@ -69,3 +70,21 @@ duplicates = filtered_posts_df.loc[filtered_posts_df["Data"].duplicated(keep=Fal
 print(duplicates)
 filtered_posts_df = filtered_posts_df[~filtered_posts_df["Data"].duplicated(keep=False)]
 print(pd.crosstab(filtered_posts_df["PageName"], filtered_posts_df["split"]))
+
+# Find common words
+train_by_author = filtered_posts_df[
+    filtered_posts_df["split"] == "train"
+].groupby("PageName")
+texts_by_author = train_by_author["Data"].agg(lambda x: x.str.cat(sep=" "))
+clean_texts = texts_by_author.str.replace(r'[^א-תa-zA-Z]+', ' ', regex=True).str.strip().str.lower()
+words_by_author = clean_texts.str.split()
+common_words = words_by_author.apply(lambda words: Counter(words).most_common(30))
+# Export common words to CSV
+rows = [
+    (author, word, count)
+    for author, word_counts in common_words.items()
+    for word, count in word_counts
+]
+
+words_df = pd.DataFrame(rows, columns=["Author", "Word", "Count"])
+words_df.to_csv("common_words.csv", index=False, encoding="utf-8-sig")
