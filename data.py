@@ -137,6 +137,7 @@ def load_filtered_posts():
     filtered_posts_df = filtered_posts_df[~filtered_posts_df["Data"].duplicated(keep=False)]
     filtered_posts_df["masked_text"] = filtered_posts_df["Data"].apply(mask_text)
     filtered_posts_df["masked_length"] = filtered_posts_df["masked_text"].str.len()
+    filtered_posts_df = filtered_posts_df[filtered_posts_df["masked_length"] >= config.MIN_POST_LENGTH]
     filtered_posts_df.reset_index(drop=True, inplace=True)
     return filtered_posts_df[["Data", "PageName", "Post_ID", "datetime", "split", "text_length",
                               "masked_text","masked_length"]]

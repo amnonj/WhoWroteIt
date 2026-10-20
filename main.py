@@ -4,6 +4,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader
+import torch.optim as optim
+import time
+
 PAD = 0
 
 # Read data
@@ -78,7 +81,25 @@ class AuthorNet(nn.Module):
 
 
 model = AuthorNet()
-model.train()
-q, labels = next(iter(train_dataloader))
-output = model(q)
-print(output.shape)
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+epochs = 10
+start_time = time.perf_counter()
+for epoch in range(epochs):
+    model.train()
+    running_loss = 0.0
+    for inputs, labels in train_dataloader:
+        optimizer.zero_grad()           # איפוס הגרדיאנטים
+        outputs = model(inputs)          # Forward Pass
+        loss = criterion(outputs, labels) # חישוב המחיר
+        loss.backward()                  # Backward Pass (חישוב גרדיאנטים)
+        optimizer.step()                 # עדכון משקולות
+        running_loss += loss.item()
+
+    print(f"Epoch {epoch+1} - Loss: {running_loss/len(train_dataloader)}")
+
+elapsed_time = time.perf_counter() - start_time
+print(f"Training time: {elapsed_time:.2f} seconds")
+print("Training Finished!")
+
