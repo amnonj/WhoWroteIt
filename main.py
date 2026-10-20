@@ -50,9 +50,17 @@ train_set_df["coded_text"] = conv_char_to_code(train_set_df["masked_text"], char
 
 train_data = torch.tensor(train_set_df["coded_text"].tolist(), dtype=torch.long)
 train_labels = torch.tensor(train_set_df["PageName"].map(author_to_id).tolist(), dtype=torch.long)
-training_data = TensorDataset(train_data, train_labels)
-train_dataloader = DataLoader(training_data, batch_size=32, shuffle=True)
+train_set = TensorDataset(train_data, train_labels)
+train_dataloader = DataLoader(train_set, batch_size=32, shuffle=True)
 
+# Validation setup
+val_set_df = filtered_posts_df[filtered_posts_df["split"] == "val"].copy()
+val_set_df["coded_text"] = conv_char_to_code(val_set_df["masked_text"], char_to_id, nn_config.message_len)
+
+val_data = torch.tensor(val_set_df["coded_text"].tolist(), dtype=torch.long)
+val_labels = torch.tensor(val_set_df["PageName"].map(author_to_id).tolist(), dtype=torch.long)
+val_set = TensorDataset(val_data, val_labels)
+val_dataloader = DataLoader(val_set, batch_size=32, shuffle=False)
 
 class AuthorNet(nn.Module):
     def __init__(self):
@@ -84,7 +92,7 @@ model = AuthorNet()
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-epochs = 10
+epochs = 50
 start_time = time.perf_counter()
 for epoch in range(epochs):
     model.train()
@@ -98,8 +106,22 @@ for epoch in range(epochs):
         running_loss += loss.item()
 
     print(f"Epoch {epoch+1} - Loss: {running_loss/len(train_dataloader)}")
+    model.eval()
+    correct = 0
+    total = 0
+    with torch.no_grad():
+        for inputs, labels in val_dataloader:
+            outputs = model(inputs)
+            _, predicted = torch.max(outputs, 1)
+
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+
+    accuracy = 100 * correct / total
+    print(f'Validation Accuracy: {accuracy:.2f}%')
 
 elapsed_time = time.perf_counter() - start_time
 print(f"Training time: {elapsed_time:.2f} seconds")
 print("Training Finished!")
+
 
