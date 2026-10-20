@@ -119,6 +119,11 @@ def load_posts():
     # Prepare data
     posts_df["text_length"] = posts_df["Data"].str.len()
     posts_df["valid"] = posts_df["text_length"] >= config.MIN_POST_LENGTH
+    return posts_df
+
+
+def load_filtered_posts():
+    posts_df = load_posts()
     filtered_posts_df = posts_df[
         posts_df["PageName"].isin(config.AUTHOR_LIST) & posts_df["valid"]
         ].drop_duplicates(subset=["PageName", "Data"]).copy()
@@ -131,5 +136,7 @@ def load_posts():
 
     filtered_posts_df = filtered_posts_df[~filtered_posts_df["Data"].duplicated(keep=False)]
     filtered_posts_df["masked_text"] = filtered_posts_df["Data"].apply(mask_text)
+    filtered_posts_df["masked_length"] = filtered_posts_df["masked_text"].str.len()
     filtered_posts_df.reset_index(drop=True, inplace=True)
-    return filtered_posts_df[["Data", "PageName", "Post_ID", "datetime", "split", "text_length", "masked_text"]]
+    return filtered_posts_df[["Data", "PageName", "Post_ID", "datetime", "split", "text_length",
+                              "masked_text","masked_length"]]

@@ -1,44 +1,20 @@
 import numpy as np
 import pandas as pd
-import zipfile as zf
-from urllib.request import urlopen
-import io
 import datetime
 from collections import Counter
+import data
+import config
+import matplotlib.pyplot as plt
 
-POSTS_URL = 'https://github.com/jschler/ILElectionData/raw/refs/heads/main/dataset/posts/AllPosts201811_202003.csv.zip'
-CSV_FILENAME = 'AllPosts201811_202003.csv'
-MIN_POST_LENGTH = 50
-AUTHOR_LIST = ["Avigdor Liberman", "Benjamin Netanyahu", "Bezazel Smotrich", "Itamar Ben-Gvir", "Miri Regev",
-               "Naftali Bennett", "Yair Lapid"]
-VALIDATION_START = datetime.datetime(2019, 12, 1)
-TEST_START = datetime.datetime(2020, 2, 1)
-pd.set_option("display.max_columns", None)
-data_sets_types = pd.CategoricalDtype(categories=["train", "val", "test"], ordered=True)
-
-# Read posts database
-response = urlopen(POSTS_URL)
-zip_buffer = io.BytesIO(response.read())
-with zf.ZipFile(zip_buffer, 'r') as archive:
-    # Open the specific file inside the archive
-    with archive.open(CSV_FILENAME) as csv_file:
-        posts_df = pd.read_csv(csv_file)
-print('Columns headers: ', list(posts_df))
-print('DB Size: ', posts_df.shape)
-print(posts_df.head())
-posts_df.info()
-
-# Prepare data
-posts_df["text_length"] = posts_df["Data"].str.len()
-posts_df["valid"] = posts_df["text_length"] >= MIN_POST_LENGTH
+posts_df = data.load_posts()
 filtered_posts_df = posts_df[
-    posts_df["PageName"].isin(AUTHOR_LIST) & posts_df["valid"]
+    posts_df["PageName"].isin(config.AUTHOR_LIST) & posts_df["valid"]
 ].drop_duplicates(subset=["PageName", "Data"]).copy()
 filtered_posts_df["datetime"] = pd.to_datetime(filtered_posts_df["Date"], format="%b %d, %Y @ %H:%M:%S.%f")
 filtered_posts_df["month"] = filtered_posts_df["datetime"].dt.to_period("M")
 filtered_posts_df["split"] = np.select(
-    [filtered_posts_df["datetime"] >= TEST_START,
-     filtered_posts_df["datetime"] >= VALIDATION_START],
+    [filtered_posts_df["datetime"] >= config.TEST_START,
+     filtered_posts_df["datetime"] >= config.VALIDATION_START],
     ["test", "val"], default="train")
 posts_by_author = filtered_posts_df.groupby('PageName')
 print(len(posts_by_author))
@@ -88,3 +64,9 @@ rows = [
 
 words_df = pd.DataFrame(rows, columns=["Author", "Word", "Count"])
 words_df.to_csv("common_words.csv", index=False, encoding="utf-8-sig")
+
+filtered_posts_df = data.load_filtered_posts()
+train_set_df = filtered_posts_df[filtered_posts_df["split"] == "train"]
+print(train_set_df["masked_length"].quantile([0.5,0.75,0.9,0.95]))
+plt.hist(train_set_df["masked_length"], bins=50)
+plt.show()
