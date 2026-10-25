@@ -10,7 +10,7 @@ import torch.optim as optim
 import time
 
 PAD = 0
-random.seed(1)
+random.seed(nn_config.SEED)
 
 # Read data
 filtered_posts_df = data.load_filtered_posts()
@@ -25,6 +25,7 @@ char_to_id = {value: index for index, value in enumerate(char_set)}
 politicians = sorted(train_set_df["PageName"].unique())
 author_to_id = {name: i for i, name in enumerate(politicians)}
 id_to_author = {i: name for i, name in enumerate(politicians)}
+num_authors = len (politicians)
 
 
 def conv_char_to_code_and_truncate(data_text, conv_dict, msg_len):
@@ -106,7 +107,7 @@ class AuthorNet(nn.Module):
                                nn_config.CONV1_STRIDE)
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout(p=nn_config.DROPOUT_RATIO)
-        self.fc = nn.Linear(2*nn_config.CONV1_OUT, 7)
+        self.fc = nn.Linear(2*nn_config.CONV1_OUT, num_authors)
 
     def forward(self, x):
         lengths = (x != 0).sum(dim=1)  # [batch_size]
@@ -157,7 +158,7 @@ for epoch in range(nn_config.max_epochs):
     total = 0
     with torch.no_grad():
         val_loss = 0.0
-        conf_mat = np.zeros([7,7],dtype=np.int64)
+        conf_mat = np.zeros([num_authors,num_authors],dtype=np.int64)
         for inputs, labels in val_dataloader:
             outputs = model(inputs)
             loss = criterion_val(outputs, labels)

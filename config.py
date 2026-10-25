@@ -4,8 +4,9 @@ import datetime
 POSTS_URL = 'https://github.com/jschler/ILElectionData/raw/refs/heads/main/dataset/posts/AllPosts201811_202003.csv.zip'
 CSV_FILENAME = 'AllPosts201811_202003.csv'
 MIN_POST_LENGTH = 50
-AUTHOR_LIST = ["Avigdor Liberman", "Benjamin Netanyahu", "Bezazel Smotrich", "Itamar Ben-Gvir", "Miri Regev",
-               "Naftali Bennett", "Yair Lapid"]
+# AUTHOR_LIST = ["Avigdor Liberman", "Benjamin Netanyahu", "Bezazel Smotrich", "Itamar Ben-Gvir", "Miri Regev",
+#                "Naftali Bennett", "Yair Lapid"]
+AUTHOR_LIST = ["Avigdor Liberman", "Benjamin Netanyahu", "Bezazel Smotrich","Naftali Bennett", "Yair Lapid"]
 VALIDATION_START = datetime.datetime(2019, 12, 1)
 TEST_START = datetime.datetime(2020, 2, 1)
 pd.set_option("display.max_columns", None)
