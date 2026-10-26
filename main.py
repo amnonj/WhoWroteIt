@@ -11,6 +11,8 @@ import time
 
 PAD = 0
 random.seed(nn_config.SEED)
+np.random.seed(nn_config.SEED)
+torch.manual_seed(nn_config.SEED)
 
 # Read data
 filtered_posts_df = data.load_filtered_posts()
@@ -106,20 +108,27 @@ class AuthorNet(nn.Module):
         self.conv1 = nn.Conv1d(nn_config.EMBEDDING_LENGTH,nn_config.CONV1_OUT,nn_config.CONV1_KERNEL,
                                nn_config.CONV1_STRIDE)
         self.relu = nn.ReLU()
+        self.conv2 = nn.Conv1d(nn_config.CONV1_OUT,nn_config.CONV2_OUT,nn_config.CONV2_KERNEL,
+                               nn_config.CONV2_STRIDE)
         self.dropout = nn.Dropout(p=nn_config.DROPOUT_RATIO)
-        self.fc = nn.Linear(2*nn_config.CONV1_OUT, num_authors)
+        self.fc = nn.Linear(2*nn_config.FC_IN, num_authors)
 
     def forward(self, x):
         lengths = (x != 0).sum(dim=1)  # [batch_size]
+        length_offset = nn_config.CONV1_KERNEL - 1 + nn_config.DO_CONV2 * (nn_config.CONV2_KERNEL - 1)
         padding_mask = (
-                torch.arange(nn_config.message_len - nn_config.CONV1_KERNEL + 1, device=x.device)[None, :]
-                < (lengths - (nn_config.CONV1_KERNEL-1))[:, None]
-        )  # [batch_size, 502]
+                torch.arange(nn_config.message_len - length_offset, device=x.device)[None, :]
+                < (lengths - length_offset)[:, None]
+        )
         x = self.embed(x)
         x = self.conv1(x.transpose(1, 2))
         x = self.relu(x)
+        if nn_config.DO_CONV2:
+            x = self.conv2(x)
+            x = self.relu(x)
+
         x1 = x.masked_fill(~padding_mask[:, None, :], float("-inf"))
-        x1 = x1.max(dim=2).values  # [batch_size, 64]
+        x1 = x1.max(dim=2).values
         x2 = x.masked_fill(~padding_mask[:, None, :], 0)
         x2 = x2.sum(dim=2) / padding_mask.sum(dim=1)[:, None].clamp(min=1)
         x = torch.cat((x1, x2), dim=1)
