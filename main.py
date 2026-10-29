@@ -111,15 +111,16 @@ class AuthorNet(nn.Module):
         self.conv2 = nn.Conv1d(nn_config.CONV1_OUT,nn_config.CONV2_OUT,nn_config.CONV2_KERNEL,
                                nn_config.CONV2_STRIDE)
         self.dropout = nn.Dropout(p=nn_config.DROPOUT_RATIO)
-        self.fc = nn.Linear(2*nn_config.FC_IN, num_authors)
+        self.fc = nn.Linear(2 * nn_config.FC_IN * nn_config.POOL_REGIONS, num_authors)
 
     def forward(self, x):
         lengths = (x != 0).sum(dim=1)  # [batch_size]
         length_offset = nn_config.CONV1_KERNEL - 1 + nn_config.DO_CONV2 * (nn_config.CONV2_KERNEL - 1)
-        padding_mask = (
-                torch.arange(nn_config.message_len - length_offset, device=x.device)[None, :]
-                < (lengths - length_offset)[:, None]
-        )
+        cut_points = (torch.arange(nn_config.POOL_REGIONS + 1, device=x.device) *
+                      (lengths - length_offset)[:,None]//nn_config.POOL_REGIONS)
+        positions = torch.arange(nn_config.message_len - length_offset, device=x.device)[None, None, :]
+        padding_mask = (cut_points[:,:-1,None] <= positions) & (positions < cut_points[:,1:,None])
+
         x = self.embed(x)
         x = self.conv1(x.transpose(1, 2))
         x = self.relu(x)
@@ -127,11 +128,11 @@ class AuthorNet(nn.Module):
             x = self.conv2(x)
             x = self.relu(x)
 
-        x1 = x.masked_fill(~padding_mask[:, None, :], float("-inf"))
-        x1 = x1.max(dim=2).values
-        x2 = x.masked_fill(~padding_mask[:, None, :], 0)
-        x2 = x2.sum(dim=2) / padding_mask.sum(dim=1)[:, None].clamp(min=1)
-        x = torch.cat((x1, x2), dim=1)
+        x1 = x[:,:,None,:].masked_fill(~padding_mask[:, None,:, :], float("-inf"))
+        x1 = x1.max(dim=3).values
+        x2 = x[:,:,None,:].masked_fill(~padding_mask[:, None, :, :], 0)
+        x2 = x2.sum(dim=3) / padding_mask.sum(dim=2)[:, None].clamp(min=1)
+        x = torch.cat((x1, x2), dim=1).flatten(1)
         x = self.dropout(x)
         x = self.fc(x)
         return x
