@@ -8,6 +8,8 @@ import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader, Dataset
 import torch.optim as optim
 import time
+import os
+import json
 
 PAD = 0
 random.seed(nn_config.SEED)
@@ -101,6 +103,44 @@ val_set = TensorDataset(val_data, val_labels)
 val_dataloader = DataLoader(val_set, batch_size=32, shuffle=False)
 
 
+def run_validation(model, criterion_val, val_dataloader):
+    model.eval()
+    m={}
+    correct = 0
+    total = 0
+    logits_list= []
+    labels_list = []
+    predicted_list = []
+    with torch.no_grad():
+        val_loss = 0.0
+        conf_mat = np.zeros([num_authors,num_authors],dtype=np.int64)
+        for inputs, labels in val_dataloader:
+            outputs = model(inputs)
+            loss = criterion_val(outputs, labels)
+            val_loss += loss.item()
+            _, predicted = torch.max(outputs, 1)
+
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+            for p, l in zip(predicted, labels):
+                conf_mat[l, p] += 1
+            logits_list.append(outputs)
+            labels_list.append(labels)
+            predicted_list.append(predicted)
+
+    m['recall_per_author'] = (np.diag(conf_mat) / conf_mat.sum(axis=1))
+    m['balanced_accuracy'] = m['recall_per_author'].mean()
+    m['accuracy'] = 100 * correct / total
+    m['val_loss_avg'] = val_loss/len(val_dataloader)
+    m['conf_mat'] = conf_mat
+    m['logits'] = torch.cat(logits_list)
+    m['labels'] = torch.cat(labels_list)
+    m['predicted'] = torch.cat(predicted_list)
+    m['probabilities'] = torch.softmax(m['logits'], dim=1)
+
+    return m
+
+
 class AuthorNet(nn.Module):
     def __init__(self):
         super(AuthorNet, self). __init__()
@@ -163,37 +203,18 @@ for epoch in range(nn_config.max_epochs):
         train_loss += loss.item()
 
     print(f"Epoch {epoch+1} - Loss: {train_loss/len(train_dataloader)}")
-    model.eval()
-    correct = 0
-    total = 0
-    with torch.no_grad():
-        val_loss = 0.0
-        conf_mat = np.zeros([num_authors,num_authors],dtype=np.int64)
-        for inputs, labels in val_dataloader:
-            outputs = model(inputs)
-            loss = criterion_val(outputs, labels)
-            val_loss += loss.item()
-            _, predicted = torch.max(outputs, 1)
 
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
-            for p, l in zip(predicted, labels):
-                conf_mat[l, p] += 1
-
-    recall_per_author = (np.diag(conf_mat) / conf_mat.sum(axis=1))
-    balanced_accuracy = recall_per_author.mean()
-    accuracy = 100 * correct / total
-    val_loss_avg = val_loss/len(val_dataloader)
-    print(f'Validation Accuracy: {accuracy:.2f}%  Loss: {val_loss_avg}')
-    print(f"Balanced Accuracy: {balanced_accuracy * 100:.2f}%")
+    metrics = run_validation(model, criterion_val, val_dataloader)
+    print(f"Validation Accuracy: {metrics['accuracy']:.2f}%  Loss: {metrics['val_loss_avg']}")
+    print(f"Balanced Accuracy: {metrics['balanced_accuracy'] * 100:.2f}%")
 #    if val_loss_avg < best_val_loss - nn_config.min_delta:
-    if balanced_accuracy > best_balanced_accuracy + nn_config.min_delta:
-        best_val_loss = val_loss_avg
-        best_balanced_accuracy = balanced_accuracy
+    if metrics['balanced_accuracy'] > best_balanced_accuracy + nn_config.min_delta:
+        best_val_loss = metrics['val_loss_avg']
+        best_balanced_accuracy = metrics['balanced_accuracy']
         last_improve_epoch = epoch
         best_model_state = copy.deepcopy(model.state_dict())
-        best_conf_mat = conf_mat
-        best_accuracy = accuracy
+        best_conf_mat = metrics['conf_mat']
+        best_accuracy = metrics['accuracy']
     elif epoch - last_improve_epoch >= nn_config.patience:
         break
 
@@ -202,9 +223,36 @@ print(f"Training time: {elapsed_time:.2f} seconds")
 print(f"Best validation loss: {best_val_loss} Best balanced accuracy: {best_balanced_accuracy} at epoch {last_improve_epoch + 1}\n Confusion Matrix:")
 print(best_conf_mat)
 print("Training Finished!")
+
 model.load_state_dict(best_model_state)
+metrics = run_validation(model, criterion_val, val_dataloader)
+metrics['post_ids'] = val_set_df["Post_ID"]
+directory = "experiments/" + time.strftime("%Y%m%d-%H%M%S")
+os.makedirs(directory, exist_ok=False)
+torch.save(model.state_dict(), os.path.join(directory,"model.pth"))
+with open(os.path.join(directory,'config.json'), 'w') as f:
+    config = {k: v for k, v in vars(nn_config).items() if not k.startswith("_")}
+    config['char_to_id'] = char_to_id
+    config['author_to_id'] = author_to_id
+
+    json.dump(config, f, indent=4)
+np.savez_compressed(os.path.join(directory,'validation.npz'),
+                    recall_per_author = metrics['recall_per_author'],
+                    balanced_accuracy = metrics['balanced_accuracy'],
+                    accuracy = metrics['accuracy'],
+                    val_loss_avg = metrics['val_loss_avg'],
+                    logits = metrics['logits'].cpu().numpy(),
+                    labels = metrics['labels'].cpu().numpy(),
+                    predicted = metrics['predicted'].cpu().numpy(),
+                    probabilities=metrics['probabilities'].cpu().numpy(),
+                    post_ids=metrics['post_ids'],
+                    conf_mat=metrics['conf_mat'],
+                    epochs = epoch + 1,
+                    selected_epoch = last_improve_epoch + 1,
+                    train_time = elapsed_time
+                    )
+
 model.eval()
-torch.save(model.state_dict(), "best_model.pth")
 
 # model = AuthorNet()
 # model.load_state_dict(torch.load("best_model.pth", weights_only=True))
