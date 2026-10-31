@@ -4,6 +4,7 @@ import random
 
 PAD = 0
 
+
 class PostDataset(Dataset):
 
     def __init__(self, text, authors, message_len):
