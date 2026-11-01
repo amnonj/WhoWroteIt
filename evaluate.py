@@ -11,9 +11,9 @@ from types import SimpleNamespace
 import text_utils
 import time
 
-IN_FOLDER = 'E32_C9_256_S555'
-OUT_FOLDER = 'E32_C9_256_S555_end'
+IN_FOLDER = 'E32_C9_256_S111'
 FROM_END = True
+DATA_SET = 'val'
 
 directory = "experiments/" + IN_FOLDER
 model_state = torch.load(os.path.join(directory, "model.pth"))
@@ -41,7 +41,7 @@ num_authors = len (politicians)
 
 
 # Validation setup
-val_set_df = filtered_posts_df[filtered_posts_df["split"] == "val"].copy()
+val_set_df = filtered_posts_df[filtered_posts_df["split"] == DATA_SET].copy()
 val_set_df["coded_text"] = text_utils.conv_char_to_code_and_truncate(val_set_df["masked_text"], char_to_id,
                                                                      nnconf.message_len, from_end=FROM_END)
 
@@ -100,20 +100,19 @@ print(
 print(metrics['conf_mat'])
 print("Validation Finished!")
 
-if OUT_FOLDER:
-    directory = "experiments/" + OUT_FOLDER
-    os.makedirs(directory, exist_ok=False)
-    np.savez_compressed(os.path.join(directory,'validation.npz'),
-                        recall_per_author = metrics['recall_per_author'],
-                        balanced_accuracy = metrics['balanced_accuracy'],
-                        accuracy = metrics['accuracy'],
-                        val_loss_avg = metrics['val_loss_avg'],
-                        logits = metrics['logits'].cpu().numpy(),
-                        labels = metrics['labels'].cpu().numpy(),
-                        predicted = metrics['predicted'].cpu().numpy(),
-                        probabilities=metrics['probabilities'].cpu().numpy(),
-                        conf_mat=metrics['conf_mat'],
-                        )
+np.savez_compressed(os.path.join("experiments", IN_FOLDER, DATA_SET + ('_end' if FROM_END else '_start') + '.npz'),
+                    recall_per_author = metrics['recall_per_author'],
+                    balanced_accuracy = metrics['balanced_accuracy'],
+                    accuracy = metrics['accuracy'],
+                    val_loss_avg = metrics['val_loss_avg'],
+                    logits = metrics['logits'].cpu().numpy(),
+                    labels = metrics['labels'].cpu().numpy(),
+                    predicted = metrics['predicted'].cpu().numpy(),
+                    probabilities=metrics['probabilities'].cpu().numpy(),
+                    conf_mat=metrics['conf_mat'],
+                    masked_length=val_set_df["masked_length"].to_numpy(),
+                    post_ids=val_set_df["Post_ID"].to_numpy()
+                    )
 
 model.eval()
 
