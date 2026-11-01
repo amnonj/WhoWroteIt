@@ -1,8 +1,12 @@
 PAD = 0
 
-def conv_char_to_code_and_truncate(data_text, conv_dict, msg_len):
+
+def conv_char_to_code_and_truncate(data_text, conv_dict, msg_len, from_end=False):
     def encode(text):
-        return [conv_dict.get(char, 1) for char in text[0:msg_len]]+[PAD]*(msg_len-len(text))
+        if from_end:
+            return [conv_dict.get(char, 1) for char in text[-msg_len:]] + [PAD] * (msg_len - len(text))
+        else:
+            return [conv_dict.get(char, 1) for char in text[0:msg_len]] + [PAD] * (msg_len - len(text))
 
     if isinstance(data_text, str):
         return encode(data_text)

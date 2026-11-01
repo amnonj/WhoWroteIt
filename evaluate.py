@@ -11,91 +11,109 @@ from types import SimpleNamespace
 import text_utils
 import time
 
+IN_FOLDER = 'E32_C9_256_S555'
+OUT_FOLDER = 'E32_C9_256_S555_end'
+FROM_END = True
 
-def evaluate(folder):
-    directory = "experiments/" + folder
-    model_state = torch.load(os.path.join(directory, "model.pth"))
-    with open(os.path.join(directory, 'netconfig.json'), 'r') as f:
-        nnconf_dic = json.load(f)
-        nnconf = SimpleNamespace(**nnconf_dic)
+directory = "experiments/" + IN_FOLDER
+model_state = torch.load(os.path.join(directory, "model.pth"))
+with open(os.path.join(directory, 'netconfig.json'), 'r') as f:
+    nnconf_dic = json.load(f)
+    nnconf = SimpleNamespace(**nnconf_dic)
 
-    PAD = 0
-    random.seed(nnconf.SEED)
-    np.random.seed(nnconf.SEED)
-    torch.manual_seed(nnconf.SEED)
+PAD = 0
+random.seed(nnconf.SEED)
+np.random.seed(nnconf.SEED)
+torch.manual_seed(nnconf.SEED)
 
-    # Read data
-    filtered_posts_df = data.load_filtered_posts()
+# Read data
+filtered_posts_df = data.load_filtered_posts()
 
-    # prepare coding dictionaries
-    train_set_df = filtered_posts_df[filtered_posts_df["split"] == "train"].copy()
-    char_set = ["PAD", "UNK"] + sorted(set(train_set_df["masked_text"].str.cat(sep=" ")))
-    id_to_char = {index: value for index, value in enumerate(char_set)}
-    char_to_id = {value: index for index, value in enumerate(char_set)}
-    politicians = sorted(train_set_df["PageName"].unique())
-    author_to_id = {name: i for i, name in enumerate(politicians)}
-    id_to_author = {i: name for i, name in enumerate(politicians)}
-    num_authors = len (politicians)
+# prepare coding dictionaries
+train_set_df = filtered_posts_df[filtered_posts_df["split"] == "train"].copy()
+char_set = ["PAD", "UNK"] + sorted(set(train_set_df["masked_text"].str.cat(sep=" ")))
+id_to_char = {index: value for index, value in enumerate(char_set)}
+char_to_id = {value: index for index, value in enumerate(char_set)}
+politicians = sorted(train_set_df["PageName"].unique())
+author_to_id = {name: i for i, name in enumerate(politicians)}
+id_to_author = {i: name for i, name in enumerate(politicians)}
+num_authors = len (politicians)
 
 
-    # Validation setup
-    val_set_df = filtered_posts_df[filtered_posts_df["split"] == "val"].copy()
-    val_set_df["coded_text"] = text_utils.conv_char_to_code_and_truncate(val_set_df["masked_text"], char_to_id, nnconf.message_len)
+# Validation setup
+val_set_df = filtered_posts_df[filtered_posts_df["split"] == "val"].copy()
+val_set_df["coded_text"] = text_utils.conv_char_to_code_and_truncate(val_set_df["masked_text"], char_to_id,
+                                                                     nnconf.message_len, from_end=FROM_END)
 
-    val_data = torch.tensor(val_set_df["coded_text"].tolist(), dtype=torch.long)
-    val_labels = torch.tensor(val_set_df["PageName"].map(author_to_id).tolist(), dtype=torch.long)
-    val_set = TensorDataset(val_data, val_labels)
-    val_dataloader = DataLoader(val_set, batch_size=32, shuffle=False)
-    criterion_val = nn.CrossEntropyLoss()
+val_data = torch.tensor(val_set_df["coded_text"].tolist(), dtype=torch.long)
+val_labels = torch.tensor(val_set_df["PageName"].map(author_to_id).tolist(), dtype=torch.long)
+val_set = TensorDataset(val_data, val_labels)
+val_dataloader = DataLoader(val_set, batch_size=32, shuffle=False)
+criterion_val = nn.CrossEntropyLoss()
 
-    def run_validation(model, criterion_val, val_dataloader):
-        model.eval()
-        m={}
-        correct = 0
-        total = 0
-        logits_list= []
-        labels_list = []
-        predicted_list = []
-        with torch.no_grad():
-            val_loss = 0.0
-            conf_mat = np.zeros([num_authors,num_authors],dtype=np.int64)
-            for inputs, labels in val_dataloader:
-                outputs = model(inputs)
-                loss = criterion_val(outputs, labels)
-                val_loss += loss.item()
-                _, predicted = torch.max(outputs, 1)
-
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
-                for p, l in zip(predicted, labels):
-                    conf_mat[l, p] += 1
-                logits_list.append(outputs)
-                labels_list.append(labels)
-                predicted_list.append(predicted)
-
-        m['recall_per_author'] = (np.diag(conf_mat) / conf_mat.sum(axis=1))
-        m['balanced_accuracy'] = m['recall_per_author'].mean()
-        m['accuracy'] = 100 * correct / total
-        m['val_loss_avg'] = val_loss/len(val_dataloader)
-        m['conf_mat'] = conf_mat
-        m['logits'] = torch.cat(logits_list)
-        m['labels'] = torch.cat(labels_list)
-        m['predicted'] = torch.cat(predicted_list)
-        m['probabilities'] = torch.softmax(m['logits'], dim=1)
-
-        return m
-
-    model = an.AuthorNet(SimpleNamespace(**nnconf_dic))
-
-    start_time = time.perf_counter()
-    model.load_state_dict(model_state)
-    metrics = run_validation(model, criterion_val, val_dataloader)
-    elapsed_time = time.perf_counter() - start_time
-    print(f"Validation time: {elapsed_time:.2f} seconds")
-    print(
-        f"Validation loss: {metrics['val_loss_avg']} Balanced accuracy: {metrics['balanced_accuracy']} \n Confusion Matrix:")
-    print(metrics['conf_mat'])
-    print("Validation Finished!")
-
+def run_validation(model, criterion_val, val_dataloader):
     model.eval()
+    m={}
+    correct = 0
+    total = 0
+    logits_list= []
+    labels_list = []
+    predicted_list = []
+    with torch.no_grad():
+        val_loss = 0.0
+        conf_mat = np.zeros([num_authors,num_authors],dtype=np.int64)
+        for inputs, labels in val_dataloader:
+            outputs = model(inputs)
+            loss = criterion_val(outputs, labels)
+            val_loss += loss.item()
+            _, predicted = torch.max(outputs, 1)
+
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+            for p, l in zip(predicted, labels):
+                conf_mat[l, p] += 1
+            logits_list.append(outputs)
+            labels_list.append(labels)
+            predicted_list.append(predicted)
+
+    m['recall_per_author'] = (np.diag(conf_mat) / conf_mat.sum(axis=1))
+    m['balanced_accuracy'] = m['recall_per_author'].mean()
+    m['accuracy'] = 100 * correct / total
+    m['val_loss_avg'] = val_loss/len(val_dataloader)
+    m['conf_mat'] = conf_mat
+    m['logits'] = torch.cat(logits_list)
+    m['labels'] = torch.cat(labels_list)
+    m['predicted'] = torch.cat(predicted_list)
+    m['probabilities'] = torch.softmax(m['logits'], dim=1)
+
+    return m
+
+model = an.AuthorNet(SimpleNamespace(**nnconf_dic))
+
+start_time = time.perf_counter()
+model.load_state_dict(model_state)
+metrics = run_validation(model, criterion_val, val_dataloader)
+elapsed_time = time.perf_counter() - start_time
+print(f"Validation time: {elapsed_time:.2f} seconds")
+print(
+    f"Validation loss: {metrics['val_loss_avg']} Balanced accuracy: {metrics['balanced_accuracy']} \n Confusion Matrix:")
+print(metrics['conf_mat'])
+print("Validation Finished!")
+
+if OUT_FOLDER:
+    directory = "experiments/" + OUT_FOLDER
+    os.makedirs(directory, exist_ok=False)
+    np.savez_compressed(os.path.join(directory,'validation.npz'),
+                        recall_per_author = metrics['recall_per_author'],
+                        balanced_accuracy = metrics['balanced_accuracy'],
+                        accuracy = metrics['accuracy'],
+                        val_loss_avg = metrics['val_loss_avg'],
+                        logits = metrics['logits'].cpu().numpy(),
+                        labels = metrics['labels'].cpu().numpy(),
+                        predicted = metrics['predicted'].cpu().numpy(),
+                        probabilities=metrics['probabilities'].cpu().numpy(),
+                        conf_mat=metrics['conf_mat'],
+                        )
+
+model.eval()
 
