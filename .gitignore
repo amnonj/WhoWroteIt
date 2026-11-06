@@ -4,5 +4,5 @@ __pycache__/
 data/raw/
 *.zip
 .idea/
-/api_secrets.py
-/poetry_data/
+/poets/api_secrets.py
+/poets/poetry_data/

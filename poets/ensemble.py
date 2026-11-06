@@ -15,7 +15,7 @@ metrics = []
 folder_names = FOLDERS * num_seg
 file_names = [DATA_SET + suffix + '.npz' for suffix in SEGMENTS for _ in range(num_nets)]
 for net_idx in range(num_nets * num_seg):
-    metrics.append(np.load(os.path.join("experiments",folder_names[net_idx],file_names[net_idx])))
+    metrics.append(np.load(os.path.join("experiments", folder_names[net_idx], file_names[net_idx])))
 assert all(
     np.array_equal(metrics[0]['post_ids'], m['post_ids'])
     for m in metrics[1:]

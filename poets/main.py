@@ -5,15 +5,13 @@ import nn_config
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import TensorDataset, DataLoader, Dataset
+from torch.utils.data import TensorDataset, DataLoader
 import torch.optim as optim
 import time
 import os
 import json
-import AuthorNet as an
+from common import AuthorNet as an, datasets, text_utils
 from types import SimpleNamespace
-import text_utils
-import datasets
 
 PAD = 0
 random.seed(nn_config.SEED)

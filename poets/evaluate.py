@@ -3,12 +3,11 @@ import data
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import TensorDataset, DataLoader, Dataset
+from torch.utils.data import TensorDataset, DataLoader
 import os
 import json
-import AuthorNet as an
+from common import AuthorNet as an, text_utils
 from types import SimpleNamespace
-import text_utils
 import time
 
 IN_FOLDER = 'E32_C9_256_S111'

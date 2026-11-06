@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import datetime
 from collections import Counter
 import data
 import config
@@ -9,7 +8,7 @@ import matplotlib.pyplot as plt
 posts_df = data.load_posts()
 filtered_posts_df = posts_df[
     posts_df["PageName"].isin(config.AUTHOR_LIST) & posts_df["valid"]
-].drop_duplicates(subset=["PageName", "Data"]).copy()
+    ].drop_duplicates(subset=["PageName", "Data"]).copy()
 filtered_posts_df["datetime"] = pd.to_datetime(filtered_posts_df["Date"], format="%b %d, %Y @ %H:%M:%S.%f")
 filtered_posts_df["month"] = filtered_posts_df["datetime"].dt.to_period("M")
 filtered_posts_df["split"] = np.select(

@@ -1,10 +1,9 @@
 import os
 import json
-import AuthorNet as an
+from common import AuthorNet as an, text_utils
 from types import SimpleNamespace
 import torch
 import data
-import text_utils
 import time
 import numpy as np
 import tkinter as tk
@@ -67,7 +66,7 @@ for folder in FOLDERS:
 
     for seg in (False,True):
         coded_text = text_utils.conv_char_to_code_and_truncate(masked_text, char_to_id,
-                                                                     nnconf.message_len, from_end=seg)
+                                                               nnconf.message_len, from_end=seg)
         model_input = torch.tensor(coded_text, dtype=torch.long).unsqueeze(0)
         model.eval()
         with torch.no_grad():
