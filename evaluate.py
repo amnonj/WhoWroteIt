@@ -31,14 +31,9 @@ filtered_posts_df = data.load_filtered_posts()
 
 # prepare coding dictionaries
 train_set_df = filtered_posts_df[filtered_posts_df["split"] == "train"].copy()
-char_set = ["PAD", "UNK"] + sorted(set(train_set_df["masked_text"].str.cat(sep=" ")))
-id_to_char = {index: value for index, value in enumerate(char_set)}
-char_to_id = {value: index for index, value in enumerate(char_set)}
-politicians = sorted(train_set_df["PageName"].unique())
-author_to_id = {name: i for i, name in enumerate(politicians)}
-id_to_author = {i: name for i, name in enumerate(politicians)}
-num_authors = len (politicians)
-
+char_to_id = nnconf.char_to_id
+author_to_id = nnconf.author_to_id
+num_authors = len (author_to_id)
 
 # Validation setup
 val_set_df = filtered_posts_df[filtered_posts_df["split"] == DATA_SET].copy()

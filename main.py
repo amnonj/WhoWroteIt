@@ -140,8 +140,8 @@ for epoch in range(nn_config.max_epochs):
     elif epoch - last_improve_epoch >= nn_config.patience:
         break
 
-elapsed_time = time.perf_counter() - start_time
-print(f"Training time: {elapsed_time:.2f} seconds")
+train_time = time.perf_counter() - start_time
+print(f"Training time: {train_time:.2f} seconds")
 print(f"Selected epoch {last_improve_epoch + 1} from {epoch + 1}")
 print("Training Finished!")
 
@@ -149,8 +149,8 @@ start_time = time.perf_counter()
 model.load_state_dict(best_model_state)
 metrics = run_validation(model, criterion_val, val_dataloader)
 
-elapsed_time = time.perf_counter() - start_time
-print(f"Validation time: {elapsed_time:.2f} seconds")
+val_time = time.perf_counter() - start_time
+print(f"Validation time: {val_time:.2f} seconds")
 print(f"Validation loss: {metrics['val_loss_avg']} Balanced accuracy: {metrics['balanced_accuracy']} \n Confusion Matrix:")
 print(metrics['conf_mat'])
 print("Validation Finished!")
@@ -163,20 +163,20 @@ torch.save(model.state_dict(), os.path.join(directory,"model.pth"))
 with open(os.path.join(directory,'netconfig.json'), 'w') as f:
     json.dump(nnconf, f, indent=4)
 np.savez_compressed(os.path.join(directory,'validation.npz'),
-                    recall_per_author = metrics['recall_per_author'],
-                    balanced_accuracy = metrics['balanced_accuracy'],
-                    accuracy = metrics['accuracy'],
+                    recall_per_author=metrics['recall_per_author'],
+                    balanced_accuracy=metrics['balanced_accuracy'],
+                    accuracy=metrics['accuracy'],
                     val_loss_avg = metrics['val_loss_avg'],
-                    logits = metrics['logits'].cpu().numpy(),
-                    labels = metrics['labels'].cpu().numpy(),
+                    logits=metrics['logits'].cpu().numpy(),
+                    labels=metrics['labels'].cpu().numpy(),
                     predicted = metrics['predicted'].cpu().numpy(),
                     probabilities=metrics['probabilities'].cpu().numpy(),
                     post_ids=metrics['post_ids'],
                     masked_length=val_set_df["masked_length"].to_numpy(),
                     conf_mat=metrics['conf_mat'],
-                    epochs = epoch + 1,
-                    selected_epoch = last_improve_epoch + 1,
-                    train_time = elapsed_time
+                    epochs=epoch + 1,
+                    selected_epoch=last_improve_epoch + 1,
+                    train_time=train_time
                     )
 
 model.eval()
