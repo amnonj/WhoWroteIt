@@ -13,5 +13,8 @@ MIN_NIKUD_RATIO_PER_WORK = 0.05
 MAX_MEAN_LINE_LENGTH = 200
 # Used to remove note line before and after the song
 MIN_NIKUD_RATIO_PER_LINE = 0.20
+# Used to remove duplicates
+SIMILARITY_THRESHOLD = 80
+MAX_LENGTH_DIFFERENCE = 0.05
 
 MAX_CONSECUTIVE_LF = 2
