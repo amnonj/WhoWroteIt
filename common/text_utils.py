@@ -1,15 +1,28 @@
 PAD = 0
 
 
-def conv_char_to_code_and_truncate(data_text, conv_dict, msg_len, from_end=False):
+import hashlib
+
+def conv_char_to_code_and_truncate(data_text, conv_dict, msg_len, from_end=False, random_crop=False):
     def encode(text):
-        if from_end:
-            return [conv_dict.get(char, 1) for char in text[-msg_len:]] + [PAD] * (msg_len - len(text))
+        if random_crop and len(text) > msg_len:
+            digest = hashlib.sha256(text.encode("utf-8")).digest()
+            start = int.from_bytes(digest[:8], "big") % (len(text) - msg_len + 1)
+        elif from_end:
+            start = max(0, len(text) - msg_len)
         else:
-            return [conv_dict.get(char, 1) for char in text[0:msg_len]] + [PAD] * (msg_len - len(text))
+            start = 0
+
+        segment = text[start:start + msg_len]
+
+        return (
+            [conv_dict.get(char, 1) for char in segment]
+            + [PAD] * (msg_len - len(segment))
+        )
 
     if isinstance(data_text, str):
         return encode(data_text)
+
     return data_text.apply(encode)
 
 

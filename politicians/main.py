@@ -10,7 +10,8 @@ import torch.optim as optim
 import time
 import os
 import json
-from common import AuthorNet as an, datasets, text_utils
+from common import AuthorNet as an, text_utils
+from politicians import datasets
 from types import SimpleNamespace
 
 PAD = 0

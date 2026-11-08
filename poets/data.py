@@ -4,7 +4,9 @@ import numpy as np
 import pandas as pd
 from poets import config
 from rapidfuzz.fuzz import ratio
+from sklearn.model_selection import train_test_split
 
+SPLIT_SEED = 12345
 FOOTER_PATTERN = re.compile(
     r"את הטקסט\[ים\] לעיל הפיקו מתנדבי פרויקט בן[־-]יהודה באינטרנט\."
     r"\s*הכל זמין תמיד בכתובת הבאה:\s*"
@@ -155,15 +157,11 @@ def load_filtered_posts():
             trimmed_text,
         )
         trimmed_text = re.sub(r"\d+", "", trimmed_text)
+        trimmed_text = NIQQUD_PATTERN.sub("", trimmed_text)
 
         return pd.Series({
             "masked_text": trimmed_text,
             "masked_length": len(trimmed_text),
-            "removed_prefix_lines": sum(bool(s.strip()) for s in lines[:first]),
-            "removed_suffix_lines": sum(bool(s.strip()) for s in lines[last:]),
-            "removed_prefix_chars": len("\n".join(lines[:first])) + int(first > 0),
-            "removed_suffix_chars": len("\n".join(lines[last:])) + int(last < len(lines)),
-            "removed_chars_pct": 100 * (len(text) - len(trimmed_text)) / max(1, len(text)),
         })
 
     trimmed = filtered_posts_df.apply(trim_edge_notes, axis=1)
@@ -173,5 +171,29 @@ def load_filtered_posts():
     # 4. Remove exact and near-duplicate works (within each author).
     #    Compare only similar normalized lengths, and keep one work per group.
     filtered_posts_df = remove_duplicate_works(filtered_posts_df)
+
+
+# Split data sets
+    indices = np.arange(len(filtered_posts_df))
+    labels = filtered_posts_df["PageName"].to_numpy()
+
+    train_idx, temp_idx = train_test_split(
+        indices,
+        test_size=0.30,
+        stratify=labels,
+        random_state=SPLIT_SEED
+    )
+
+    val_idx, test_idx = train_test_split(
+        temp_idx,
+        test_size=0.50,
+        stratify=labels[temp_idx],
+        random_state=SPLIT_SEED
+    )
+
+    filtered_posts_df["split"] = ""
+    filtered_posts_df.loc[filtered_posts_df.index[train_idx], "split"] = "train"
+    filtered_posts_df.loc[filtered_posts_df.index[val_idx], "split"] = "val"
+    filtered_posts_df.loc[filtered_posts_df.index[test_idx], "split"] = "test"
 
     return filtered_posts_df

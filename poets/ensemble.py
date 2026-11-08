@@ -3,10 +3,10 @@ import os
 import pandas as pd
 import json
 SELECTION = 'MAJORITY'   # SUM/ MUL / MAX / MAJORITY
-SEGMENTS = ['_start','_end']
-COMB = [29, 8]   # None for all or a list
-DATA_SET = 'test'
-FOLDERS = ('E32_C9_256_S111', 'E32_C9_256_S222', 'E32_C9_256_S333', 'E32_C9_256_S444', 'E32_C9_256_S555')
+SEGMENTS = ['']  #['_start','_end']
+COMB = None   # None for all or a list
+DATA_SET = 'validation'
+FOLDERS = ('20261108-113317', '20261108-123838', '20261108-124709')
 
 num_seg = len(SEGMENTS)
 num_nets = len(FOLDERS)
