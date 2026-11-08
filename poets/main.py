@@ -159,6 +159,11 @@ for SEED in nn_config.SEED:
     print(f"Validation loss: {metrics['val_loss_avg']} Balanced accuracy: {metrics['balanced_accuracy']} \n Confusion Matrix:")
     conf_df = pd.DataFrame(metrics["conf_mat"], index=authors, columns=range(num_authors) )
     print(conf_df.to_string())
+    print("     " + " ".join(f"{i:3d}" for i in range(num_authors)))
+
+    for i, row in enumerate(metrics["conf_mat"]):
+        numbers = " ".join(f"{n:3d}" for n in row)
+        print(f"{chr(65 + i)}   {numbers}   {authors[i]}")
     print(20*"=")
     print("Validation Finished!")
 
