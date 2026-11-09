@@ -159,9 +159,12 @@ def load_filtered_posts():
         trimmed_text = re.sub(r"\d+", "", trimmed_text)
         trimmed_text = NIQQUD_PATTERN.sub("", trimmed_text)
 
+        lines = [line.strip() for line in trimmed_text.splitlines() if line.strip()]
+
         return pd.Series({
             "masked_text": trimmed_text,
             "masked_length": len(trimmed_text),
+            "lines": lines
         })
 
     trimmed = filtered_posts_df.apply(trim_edge_notes, axis=1)

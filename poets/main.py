@@ -11,7 +11,8 @@ import pandas as pd
 import time
 import os
 import json
-from common import AuthorNet as an, text_utils
+from common import text_utils
+from poets import AuthorNet as an
 from poets import datasets
 from types import SimpleNamespace
 import winsound
@@ -38,26 +39,34 @@ for SEED in nn_config.SEED:
     id_to_author = {i: name for i, name in enumerate(authors)}
     num_authors = len (authors)
 
+    nnconf = {k: v for k, v in vars(nn_config).items() if not k.startswith("_")}
+    nnconf['char_to_id'] = char_to_id
+    nnconf['author_to_id'] = author_to_id
+    nnconf["SEED"] = SEED
+    nnconf_obj = SimpleNamespace(**nnconf)
+
     train_set_df["coded_text"] = text_utils.conv_char_to_code(train_set_df["masked_text"], char_to_id)
+    train_set_df["coded_lines"] = text_utils.conv_char_to_code(train_set_df["lines"], char_to_id)
 
     # testing
     # train_set_df["decoded_text"] = text_utils.conv_code_to_char(train_set_df["coded_text"], id_to_char)
     # print((train_set_df["decoded_text"] == train_set_df["masked_text"]).all())
 
-
-    train_data = train_set_df["coded_text"].tolist()
+    train_data_1D = train_set_df["coded_text"].tolist()
+    train_data_2D = train_set_df["coded_lines"].tolist()
     train_labels = torch.tensor(train_set_df["PageName"].map(author_to_id).tolist(), dtype=torch.long)
-    train_set = datasets.PostDataset(train_data, train_labels, nn_config.message_len, nn_config.MAX_POST_REGIONS, nn_config.EPOCH_SIZE)
+    train_set = datasets.PostDataset(train_data_1D, train_data_2D, train_labels, nnconf_obj)
     train_dataloader = DataLoader(train_set, batch_size=32, shuffle=False)
 
     # Validation setup
     val_set_df = filtered_posts_df[filtered_posts_df["split"] == "val"].copy()
-    val_set_df["coded_text"] = text_utils.conv_char_to_code_and_truncate(val_set_df["masked_text"],
-                               char_to_id, nn_config.message_len, random_crop=True)
+    val_set_df["coded_text"] = text_utils.conv_char_to_code(val_set_df["masked_text"],char_to_id)
+    val_set_df["coded_lines"] = text_utils.conv_char_to_code(val_set_df["lines"],char_to_id)
 
-    val_data = torch.tensor(val_set_df["coded_text"].tolist(), dtype=torch.long)
+    val_data_1d = val_set_df["coded_text"].tolist()
+    val_data_2d = val_set_df["coded_lines"].tolist()
     val_labels = torch.tensor(val_set_df["PageName"].map(author_to_id).tolist(), dtype=torch.long)
-    val_set = TensorDataset(val_data, val_labels)
+    val_set = datasets.PostDataset(val_data_1d, val_data_2d, val_labels, nnconf_obj, VALIDATION=True)
     val_dataloader = DataLoader(val_set, batch_size=32, shuffle=False)
 
 
@@ -72,8 +81,8 @@ for SEED in nn_config.SEED:
         with torch.no_grad():
             val_loss = 0.0
             conf_mat = np.zeros([num_authors,num_authors],dtype=np.int64)
-            for inputs, labels in val_dataloader:
-                outputs = model(inputs)
+            for inputs_1D, inputs_2D, labels in val_dataloader:
+                outputs = model(inputs_1D, inputs_2D)
                 loss = criterion_val(outputs, labels)
                 val_loss += loss.item()
                 _, predicted = torch.max(outputs, 1)
@@ -98,14 +107,7 @@ for SEED in nn_config.SEED:
 
         return m
 
-
-    nnconf = {k: v for k, v in vars(nn_config).items() if not k.startswith("_")}
-    nnconf['char_to_id'] = char_to_id
-    nnconf['author_to_id'] = author_to_id
-    nnconf["SEED"] = SEED
-
     model = an.AuthorNet(SimpleNamespace(**nnconf))
-    weights = torch.tensor(1 / np.bincount(train_labels), dtype=torch.float32)
     criterion_train = nn.CrossEntropyLoss()
     criterion_val = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=0.001)
@@ -121,9 +123,9 @@ for SEED in nn_config.SEED:
         model.train()
         train_loss = 0.0
         b = 0
-        for inputs, labels in train_dataloader:
+        for inputs_1D, inputs_2D, labels in train_dataloader:
             optimizer.zero_grad()           # איפוס הגרדיאנטים
-            outputs = model(inputs)          # Forward Pass
+            outputs = model(inputs_1D, inputs_2D)          # Forward Pass
             loss = criterion_train(outputs, labels) # חישוב המחיר
             loss.backward()                  # Backward Pass (חישוב גרדיאנטים)
             optimizer.step()                 # עדכון משקולות
@@ -158,7 +160,6 @@ for SEED in nn_config.SEED:
     print(f"Validation time: {val_time:.2f} seconds")
     print(f"Validation loss: {metrics['val_loss_avg']} Balanced accuracy: {metrics['balanced_accuracy']} \n Confusion Matrix:")
     conf_df = pd.DataFrame(metrics["conf_mat"], index=authors, columns=range(num_authors) )
-    print(conf_df.to_string())
     print("     " + " ".join(f"{i:3d}" for i in range(num_authors)))
 
     for i, row in enumerate(metrics["conf_mat"]):

@@ -1,7 +1,7 @@
+import hashlib
+
 PAD = 0
 
-
-import hashlib
 
 def conv_char_to_code_and_truncate(data_text, conv_dict, msg_len, from_end=False, random_crop=False):
     def encode(text):
@@ -28,9 +28,11 @@ def conv_char_to_code_and_truncate(data_text, conv_dict, msg_len, from_end=False
 
 def conv_char_to_code(data_text, conv_dict):
     def encode(text):
-        return [conv_dict.get(char, 1) for char in text]
+        if isinstance(text, str):
+            return [conv_dict.get(char, 1) for char in text]
+        return [encode(line) for line in text]
 
-    if isinstance(data_text, str):
+    if isinstance(data_text, (str, list)):
         return encode(data_text)
     return data_text.apply(encode)
 

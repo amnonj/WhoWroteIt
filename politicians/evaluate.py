@@ -6,7 +6,8 @@ import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader
 import os
 import json
-from common import AuthorNet as an, text_utils
+from common import text_utils
+from politicians import AuthorNet as an
 from types import SimpleNamespace
 import time
 

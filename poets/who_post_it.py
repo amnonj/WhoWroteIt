@@ -1,6 +1,7 @@
 import os
 import json
-from common import AuthorNet as an, text_utils
+from common import text_utils
+from poets import AuthorNet as an
 from types import SimpleNamespace
 import torch
 import data
