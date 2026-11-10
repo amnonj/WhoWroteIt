@@ -216,21 +216,22 @@ for SEED in nn_config.SEED:
     }
 
     new_result = pd.DataFrame([result_row])
-
     if os.path.exists(results_file):
         previous_results = pd.read_csv(results_file)
-        new_result = pd.concat(
-            [previous_results, new_result],
-            ignore_index=True
-        )
-
-    new_result.to_csv(
-        results_file,
-        index=False,
-        encoding="utf-8-sig"
-    )
+        new_result = pd.concat([previous_results, new_result], ignore_index=True)
+    while True:
+        try:
+            new_result.to_csv(results_file, index=False, encoding="utf-8-sig")
+        except PermissionError:
+            for n in range(10):
+                winsound.Beep(400, 100)
+                time.sleep(0.1)
+            input("Can't write results.csv. If it's open, close the window and press any key to retry")
+        else:
+            break
 
 winsound.Beep(400, 500)
+
 
 # model = AuthorNet()
 # model.load_state_dict(torch.load("best_model.pth", weights_only=True))
