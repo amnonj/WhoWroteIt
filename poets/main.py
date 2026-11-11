@@ -17,7 +17,7 @@ from poets import datasets
 from types import SimpleNamespace
 import winsound
 
-PAD = 0
+
 
 for SEED in nn_config.SEED:
     random.seed(SEED)
