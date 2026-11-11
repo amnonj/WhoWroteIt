@@ -2,11 +2,50 @@ import numpy as np
 import os
 import pandas as pd
 import json
-SELECTION = 'MAJORITY'   # SUM/ MUL / MAX / MAJORITY
+from itertools import combinations
+from scipy.optimize import minimize
+from scipy.special import logsumexp
+from sklearn.model_selection import StratifiedKFold
+
+SELECTION = 'MUL'   # SUM/ MUL / MAX / MAJORITY
 SEGMENTS = ['']  #['_start','_end']
-COMB = None   # None for all or a list
 DATA_SET = 'validation'
-FOLDERS = ('20261108-113317', '20261108-123838', '20261108-124709')
+#FOLDERS = ('20261108-113317', '20261108-123838', '20261108-124709')
+
+FOLDERS = (
+    # 1D only
+    '20261108-113317',
+    '20261108-123838',
+    '20261108-124709',
+
+    # 2D only
+    '20261109-224015',
+    '20261110-231445',
+    '20261109-212906',
+    '20261109-213902',
+
+    # Combined: new modular pooling
+    '20261110-232829',
+    '20261111-141613',
+    '20261111-002142',
+    '20261111-010609',
+    '20261111-005359',
+    '20261110-233042',
+    '20261111-141949',
+    '20261111-024938',
+
+    # Combined: previous architectures
+    '20261109-224724',
+    '20261109-230443',
+    '20261109-211521',
+    '20261109-215802',
+    '20261109-224347',
+)
+
+MAX_NETS = 4
+COMB = [387]  #None   # None for all or a list
+#BASE_COMB = 1282
+#COMB = [BASE_COMB | (1 << i) for i in range(len(FOLDERS)) if not (BASE_COMB & (1 << i))]
 
 num_seg = len(SEGMENTS)
 num_nets = len(FOLDERS)
@@ -24,7 +63,145 @@ assert all(
 num_authors = np.size(metrics[0]['probabilities'],1)
 labels = metrics[0]['labels']
 
-comb_ids = np.atleast_1d(COMB if COMB is not None else np.arange(1, 2 ** num_nets))
+#################################
+# Optimize weights of the selected ensemble (1-based net indices)
+WEIGHTED_NETS = (1, 2, 8, 9)
+N_FOLDS = 5
+
+assert SEGMENTS == ['']
+assert all(np.array_equal(m['labels'], labels) for m in metrics)
+
+# [poems, authors, networks]
+weighted_logits = np.stack(
+    [metrics[i - 1]['logits'] for i in WEIGHTED_NETS], axis=2
+).astype(np.float64)
+
+n_weighted = len(WEIGHTED_NETS)
+equal_weights = np.full(n_weighted, 1.0 / n_weighted)
+
+
+def weighted_scores(z, w):
+    return np.einsum('nkm,m->nk', z, w)
+
+
+def balanced_ce_and_gradient(w, z, y):
+    scores = weighted_scores(z, w)
+    log_probs = scores - logsumexp(scores, axis=1, keepdims=True)
+    probs = np.exp(log_probs)
+
+    counts = np.bincount(y, minlength=z.shape[1])
+    sample_weights = 1.0 / counts[y]
+    sample_weights /= sample_weights.sum()
+
+    rows = np.arange(len(y))
+    loss = -np.dot(sample_weights, log_probs[rows, y])
+
+    probs[rows, y] -= 1.0
+    gradient = np.einsum(
+        'nkm,nk,n->m', z, probs, sample_weights
+    )
+    return loss, gradient
+
+
+def fit_weights(z, y):
+    n = z.shape[2]
+    result = minimize(
+        balanced_ce_and_gradient,
+        np.full(n, 1.0 / n),
+        args=(z, y),
+        jac=True,
+        method='SLSQP',
+        bounds=[(0.0, 1.0)] * n,
+        constraints=[{
+            'type': 'eq',
+            'fun': lambda w: w.sum() - 1.0,
+            'jac': lambda w: np.ones_like(w)
+        }],
+        options={'ftol': 1e-11, 'maxiter': 500}
+    )
+    if not result.success:
+        raise RuntimeError(result.message)
+    return result.x
+
+
+def print_metrics(title, scores, y):
+    predicted = scores.argmax(axis=1)
+    accuracy = (predicted == y).mean()
+    balanced_accuracy = np.mean([
+        (predicted[y == k] == k).mean()
+        for k in np.unique(y)
+    ])
+
+    log_probs = scores - logsumexp(
+        scores, axis=1, keepdims=True
+    )
+    balanced_ce = np.mean([
+        -log_probs[y == k, k].mean()
+        for k in np.unique(y)
+    ])
+
+    print(
+        f'{title}: Accuracy={accuracy:.2%}, '
+        f'Balanced={balanced_accuracy:.2%}, '
+        f'Balanced CE={balanced_ce:.4f}'
+    )
+
+
+# Cross-validation: fit on 4 folds, predict the held-out fold
+splitter = StratifiedKFold(
+    n_splits=N_FOLDS, shuffle=True, random_state=42
+)
+
+oof_equal = np.empty(weighted_logits.shape[:2])
+oof_optimized = np.empty_like(oof_equal)
+cv_weights = []
+
+for fold, (train_idx, val_idx) in enumerate(
+    splitter.split(weighted_logits, labels), 1
+):
+    w = fit_weights(
+        weighted_logits[train_idx], labels[train_idx]
+    )
+    cv_weights.append(w)
+
+    oof_equal[val_idx] = weighted_scores(
+        weighted_logits[val_idx], equal_weights
+    )
+    oof_optimized[val_idx] = weighted_scores(
+        weighted_logits[val_idx], w
+    )
+
+    print(f'Fold {fold} weights: {np.round(w, 4)}')
+
+
+print('\n--- Cross-validation (held-out predictions) ---')
+print_metrics('Equal weights    ', oof_equal, labels)
+print_metrics('Optimized weights', oof_optimized, labels)
+
+print('Mean weights:', np.round(np.mean(cv_weights, axis=0), 4))
+print('Std weights: ', np.round(np.std(cv_weights, axis=0), 4))
+
+
+# Final weights fitted on all 441 validation poems
+final_weights = fit_weights(weighted_logits, labels)
+
+print('\n--- Final fit on all validation poems ---')
+for i, w in zip(WEIGHTED_NETS, final_weights):
+    print(f'{i}: {FOLDERS[i - 1]}  weight={w:.4f}')
+
+print_metrics(
+    'Equal weights    ',
+    weighted_scores(weighted_logits, equal_weights), labels
+)
+print_metrics(
+    'Optimized weights',
+    weighted_scores(weighted_logits, final_weights), labels
+)
+###########################
+
+comb_ids = np.atleast_1d(COMB if COMB is not None else
+                         np.array([sum(1 << i for i in combo) for k in range(1, MAX_NETS + 1)
+                                  for combo in combinations(range(num_nets), k)], dtype=np.int64))
 all_comb = ((comb_ids[:, None] >> np.arange(num_nets)) & 1)
 all_comb = np.tile(all_comb,[1,num_seg])
 if SELECTION == 'SUM':
@@ -65,7 +242,7 @@ individual_correct = individual_predicted == labels[:, None, None]
 individual_chosen = individual_predicted[:,:,None] == predicted[:,None,:]
 
 
-
+print(f"Selection: {SELECTION}")
 print(f"{'Comb':>4}  {'Nets':<18} {'Count':>5} {'Accuracy':>10} {'Balanced':>10}")
 print("-" * 55)
 
@@ -92,7 +269,7 @@ true_rank = 1 + np.sum(
     axis=1
 )
 
-for c in range(all_comb.shape[0]):
+for c in np.argsort(-balanced_accuracy)[:10]:
     combination = np.flatnonzero(all_comb[c]) + 1
 
     df = pd.DataFrame({
@@ -115,6 +292,14 @@ for c in range(all_comb.shape[0]):
         ]
     })
 
+    unanimous_errors = df[
+        (df['votes_predicted'] == num_selected[c]) &
+        (~df['correct'])
+        ]
+    print("\n--- Unanimous errors ---")
+    print(unanimous_errors[
+              ['post_id', 'label', 'predicted', 'length', 'prob_margin']
+          ].to_string(index=False))
     # Two guesses for 20% of posts longer than 100 characters
     long_posts = df[df['length'] > 100].copy()
 

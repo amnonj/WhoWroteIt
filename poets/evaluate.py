@@ -3,23 +3,30 @@ import data
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import TensorDataset, DataLoader
+from torch.utils.data import DataLoader
 import os
 import json
 from common import text_utils
 from poets import AuthorNet as an
+from poets import datasets
 from types import SimpleNamespace
 import time
 
-IN_FOLDER = 'E32_C9_256_S111'
-FROM_END = True
+IN_FOLDER = '20261108-125504'
 DATA_SET = 'val'
 
-directory = "experiments/" + IN_FOLDER
-model_state = torch.load(os.path.join(directory, "model.pth"))
+directory = os.path.join('experiments', IN_FOLDER)
+
 with open(os.path.join(directory, 'netconfig.json'), 'r') as f:
     nnconf_dic = json.load(f)
-    nnconf = SimpleNamespace(**nnconf_dic)
+CONFIG_DEFAULTS = {'USE_1D': True,'USE_2D': False, 'DO_CONV2': False, 'DO_CONV2_2D': False, 'DO_POOL1_2D': False,
+                   'CONV2_OUT': 0, 'CONV1_OUT_2D': 0, 'CONV2_OUT_2D': 0, 'POOL1_REGIONS_2D': (0, 0),
+                   'POOL_REGIONS_2D': (0, 0), 'NUM_LINES':0, 'CHARS_FROM_START': 0, 'CHARS_FROM_END': 0}
+for key, value in CONFIG_DEFAULTS.items():
+    nnconf_dic.setdefault(key, value)
+nnconf_dic.setdefault("POOL2_REGIONS_2D", nnconf_dic["POOL_REGIONS_2D"])
+nnconf = SimpleNamespace(**nnconf_dic)
+model_state = torch.load(os.path.join(directory, 'model.pth'), map_location='cpu', weights_only=True)
 
 PAD = 0
 random.seed(nnconf.SEED)
@@ -30,21 +37,23 @@ torch.manual_seed(nnconf.SEED)
 filtered_posts_df = data.load_filtered_posts()
 
 # prepare coding dictionaries
-train_set_df = filtered_posts_df[filtered_posts_df["split"] == "train"].copy()
 char_to_id = nnconf.char_to_id
 author_to_id = nnconf.author_to_id
-num_authors = len (author_to_id)
+num_authors = len(author_to_id)
+authors = [name for name, idx in sorted(author_to_id.items(), key=lambda pair: pair[1])]
 
 # Validation setup
 val_set_df = filtered_posts_df[filtered_posts_df["split"] == DATA_SET].copy()
-val_set_df["coded_text"] = text_utils.conv_char_to_code_and_truncate(val_set_df["masked_text"], char_to_id,
-                                                                     nnconf.message_len, from_end=FROM_END)
+val_set_df["coded_text"] = text_utils.conv_char_to_code(val_set_df["masked_text"], char_to_id)
+val_set_df["coded_lines"] = text_utils.conv_char_to_code(val_set_df["lines"], char_to_id)
 
-val_data = torch.tensor(val_set_df["coded_text"].tolist(), dtype=torch.long)
+val_data_1d = val_set_df["coded_text"].tolist()
+val_data_2d = val_set_df["coded_lines"].tolist()
 val_labels = torch.tensor(val_set_df["PageName"].map(author_to_id).tolist(), dtype=torch.long)
-val_set = TensorDataset(val_data, val_labels)
+val_set = datasets.PostDataset(val_data_1d, val_data_2d, val_labels, nnconf, VALIDATION=True)
 val_dataloader = DataLoader(val_set, batch_size=32, shuffle=False)
 criterion_val = nn.CrossEntropyLoss()
+
 
 def run_validation(model, criterion_val, val_dataloader):
     model.eval()
@@ -56,9 +65,9 @@ def run_validation(model, criterion_val, val_dataloader):
     predicted_list = []
     with torch.no_grad():
         val_loss = 0.0
-        conf_mat = np.zeros([num_authors,num_authors],dtype=np.int64)
-        for inputs, labels in val_dataloader:
-            outputs = model(inputs)
+        conf_mat = np.zeros([num_authors, num_authors], dtype=np.int64)
+        for inputs_1D, inputs_2D, labels in val_dataloader:
+            outputs = model(inputs_1D, inputs_2D)
             loss = criterion_val(outputs, labels)
             val_loss += loss.item()
             _, predicted = torch.max(outputs, 1)
@@ -71,31 +80,52 @@ def run_validation(model, criterion_val, val_dataloader):
             labels_list.append(labels)
             predicted_list.append(predicted)
 
-    m['recall_per_author'] = (np.diag(conf_mat) / conf_mat.sum(axis=1))
+    m['recall_per_author'] = np.diag(conf_mat) / conf_mat.sum(axis=1)
     m['balanced_accuracy'] = m['recall_per_author'].mean()
     m['accuracy'] = 100 * correct / total
-    m['val_loss_avg'] = val_loss/len(val_dataloader)
+    m['val_loss_avg'] = val_loss / len(val_dataloader)
     m['conf_mat'] = conf_mat
     m['logits'] = torch.cat(logits_list)
     m['labels'] = torch.cat(labels_list)
     m['predicted'] = torch.cat(predicted_list)
     m['probabilities'] = torch.softmax(m['logits'], dim=1)
-
     return m
 
-model = an.AuthorNet(SimpleNamespace(**nnconf_dic))
 
-start_time = time.perf_counter()
+model = an.AuthorNet(nnconf)
 model.load_state_dict(model_state)
+start_time = time.perf_counter()
 metrics = run_validation(model, criterion_val, val_dataloader)
-elapsed_time = time.perf_counter() - start_time
-print(f"Validation time: {elapsed_time:.2f} seconds")
-print(
-    f"Validation loss: {metrics['val_loss_avg']} Balanced accuracy: {metrics['balanced_accuracy']} \n Confusion Matrix:")
-print(metrics['conf_mat'])
+val_time = time.perf_counter() - start_time
+
+print(f"{DATA_SET} time: {val_time:.2f} seconds")
+print(f"Loss: {metrics['val_loss_avg']} Balanced accuracy: {metrics['balanced_accuracy']} \n Confusion Matrix:")
+print("     " + " ".join(f"{i:3d}" for i in range(num_authors)))
+for i, row in enumerate(metrics["conf_mat"]):
+    numbers = " ".join(f"{n:3d}" for n in row)
+    print(f"{chr(65 + i)}   {numbers}   {authors[i]}")
+print(20 * "=")
 print("Validation Finished!")
 
-np.savez_compressed(os.path.join("experiments", IN_FOLDER, DATA_SET + ('_end' if FROM_END else '_start') + '.npz'),
+
+# Crucial sanity check: VAL should reproduce the stored predictions before evaluating TEST.
+if DATA_SET == 'val':
+    original_path = os.path.join(directory, 'validation.npz')
+    with np.load(original_path) as original:
+        assert np.array_equal(val_set_df['Post_ID'].to_numpy(), original['post_ids']), \
+            'VAL post IDs or order differ from the original run!'
+        assert np.array_equal(metrics['labels'].cpu().numpy(), original['labels']), \
+            'VAL labels differ from the original run!'
+        max_diff = np.max(np.abs(metrics['logits'].cpu().numpy() - original['logits']))
+        print(f'Max absolute difference vs saved validation logits: {max_diff:.8g}')
+        assert np.allclose(metrics['logits'].cpu().numpy(), original['logits'],
+                           rtol=1e-5, atol=1e-5), \
+            'VAL logits differ from original! Check model and preprocessing versions.'
+    print('VAL comparison passed: predictions match the original saved validation.npz')
+
+filename = 'validation_recheck.npz' if DATA_SET == 'val' else 'test.npz'
+out_path = os.path.join(directory, filename)
+np.savez_compressed(out_path,
                     recall_per_author = metrics['recall_per_author'],
                     balanced_accuracy = metrics['balanced_accuracy'],
                     accuracy = metrics['accuracy'],
@@ -108,6 +138,4 @@ np.savez_compressed(os.path.join("experiments", IN_FOLDER, DATA_SET + ('_end' if
                     masked_length=val_set_df["masked_length"].to_numpy(),
                     post_ids=val_set_df["Post_ID"].to_numpy()
                     )
-
-model.eval()
-
+print(f'Saved {out_path}')
