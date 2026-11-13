@@ -13,9 +13,7 @@ FOOTER_PATTERN = re.compile(
     r"https?://benyehuda\.org/read/\d+\s*$"
 )
 
-NIQQUD_PATTERN = re.compile(
-    r"[\u0591-\u05BD\u05BF\u05C1-\u05C2\u05C4-\u05C5\u05C7]"
-)
+NIQQUD_PATTERN = re.compile(r"[\u0591-\u05BD\u05BF\u05C1-\u05C2\u05C4-\u05C5\u05C7]")
 HEBREW_PATTERN = re.compile(r"[א-ת]")
 
 

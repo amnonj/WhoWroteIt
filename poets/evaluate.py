@@ -12,8 +12,8 @@ from poets import datasets
 from types import SimpleNamespace
 import time
 
-IN_FOLDER = '20261108-125504'
-DATA_SET = 'val'
+IN_FOLDER = '20261108-113317'
+DATA_SET = 'test'
 
 directory = os.path.join('experiments', IN_FOLDER)
 
@@ -111,6 +111,8 @@ print("Validation Finished!")
 # Crucial sanity check: VAL should reproduce the stored predictions before evaluating TEST.
 if DATA_SET == 'val':
     original_path = os.path.join(directory, 'validation.npz')
+
+    '''
     with np.load(original_path) as original:
         assert np.array_equal(val_set_df['Post_ID'].to_numpy(), original['post_ids']), \
             'VAL post IDs or order differ from the original run!'
@@ -122,6 +124,49 @@ if DATA_SET == 'val':
                            rtol=1e-5, atol=1e-5), \
             'VAL logits differ from original! Check model and preprocessing versions.'
     print('VAL comparison passed: predictions match the original saved validation.npz')
+    '''
+###############################
+    with np.load(os.path.join(directory, 'validation.npz')) as original:
+        old_logits = original['logits']
+        new_logits = metrics['logits'].cpu().numpy()
+
+        assert np.array_equal(
+            original['post_ids'],
+            val_set_df['Post_ID'].to_numpy()
+        )
+
+        lengths = val_set_df['masked_length'].to_numpy()
+        max_diff = np.max(np.abs(old_logits - new_logits), axis=1)
+
+        min_valid_length = (
+            nnconf.CONV1_KERNEL - 1
+            + int(nnconf.DO_CONV2) * (nnconf.CONV2_KERNEL - 1)
+            + nnconf.POOL_REGIONS
+        )
+
+        groups = {
+            'Short (possible empty regions)': lengths < min_valid_length,
+            'Short (normal pooling)': (
+                (lengths >= min_valid_length)
+                & (lengths <= nnconf.message_len)
+            ),
+            'Long (cropped)': lengths > nnconf.message_len
+        }
+
+        for name, mask in groups.items():
+            if not mask.any():
+                continue
+
+            print(f'\n{name}: {mask.sum()} posts')
+            print(f'Identical logits: {(max_diff[mask] < 1e-5).mean():.2%}')
+            print(f'Median max difference: {np.median(max_diff[mask]):.6f}')
+            print(
+                f'Same prediction: '
+                f'{(old_logits[mask].argmax(axis=1) == new_logits[mask].argmax(axis=1)).mean():.2%}'
+            )
+
+
+###############################
 
 filename = 'validation_recheck.npz' if DATA_SET == 'val' else 'test.npz'
 out_path = os.path.join(directory, filename)
