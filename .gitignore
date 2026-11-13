@@ -1,8 +1,45 @@
+
+# Python environment and cache
 .venv/
 __pycache__/
 *.pyc
+
+# IDE
+.idea/
+
+# Raw datasets
 data/raw/
 *.zip
-.idea/
-/poets/api_secrets.py
 /poets/poetry_data/
+
+# Secrets
+/poets/api_secrets.py
+.env
+.streamlit/secrets.toml
+
+# Model weights
+*.pth
+*.npz
+
+# Experiment folders
+/experiments/
+/politicians/experiments/*
+/poets/experiments/*
+
+# Keep experiment summaries
+!/politicians/experiments/common_words.csv
+!/politicians/experiments/results.csv
+!/poets/experiments/results.csv
+
+# Keep the selected production model
+!/poets/experiments/20261111-141613/
+/poets/experiments/20261111-141613/*
+!/poets/experiments/20261111-141613/model.pth
+!/poets/experiments/20261111-141613/netconfig.json
+
+# Intermediate analysis
+/poets/poetry_analysis.csv
+
+# Temporary architecture experiments
+/poets/AuthorNet_hierarcical_test.py
+/poets/nn_config_hierarcical_test.py
