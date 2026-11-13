@@ -19,7 +19,7 @@ from poets import AuthorNet as an
 
 MODEL_FOLDER = BASE_DIR.parent / "poets" / "experiments" / "20261111-141613"
 
-MIN_TEXT_LENGTH = 50
+MIN_TEXT_LENGTH = 100
 PAD = 0
 
 NIQQUD_PATTERN = re.compile(
@@ -128,7 +128,7 @@ def predict(text, model, nnconf):
 # -------------------------------
 
 st.set_page_config(
-    page_title="Who Wrote It?",
+    page_title="מי כתב את השיר?",
     page_icon="📖",
     layout="centered"
 )
@@ -140,29 +140,143 @@ st.markdown("""
         text-align: right;
     }
 
-    textarea {
+    [data-testid="stMainBlockContainer"] {
         direction: rtl;
         text-align: right;
+        max-width: 820px;
+        padding-top: 2.5rem;
+    }
+
+    [data-testid="stMarkdownContainer"],
+    [data-testid="stMarkdownContainer"] p,
+    [data-testid="stMarkdownContainer"] h1,
+    [data-testid="stMarkdownContainer"] h2,
+    [data-testid="stMarkdownContainer"] h3,
+    [data-testid="stCaptionContainer"] {
+        direction: rtl;
+        text-align: right;
+    }
+
+    textarea {
+        direction: rtl !important;
+        text-align: right !important;
+        font-size: 18px !important;
+        line-height: 1.7 !important;
+    }
+
+    [data-testid="stButton"] button {
+        background-color: #315d85;
+        color: white;
+        border: none;
+        font-size: 18px;
+        border-radius: 10px;
+        min-height: 48px;
+    }
+
+    [data-testid="stButton"] button:hover {
+        background-color: #244c70;
+        color: white;
+    }
+
+    [data-testid="stButton"] button p {
+        color: white;
+        text-align: center;
+    }
+
+    [data-testid="stProgress"] div[role="progressbar"] > div {
+        background-color: #517ea5;
+    }
+
+    .intro-box {
+        background-color: #eff3f8;
+        color: #222222;
+        padding: 18px 22px;
+        border-radius: 12px;
+        border-right: 4px solid #517ea5;
+        margin-bottom: 10px;
+        font-size: 16px;
+        line-height: 1.8;
+        text-align: right;
+        direction: rtl;
+    }
+
+    .result-box {
+        background-color: #e8f1f7;
+        padding: 22px;
+        border-radius: 14px;
+        margin: 12px 0 20px 0;
+        text-align: center;
+    }
+
+    .result-label {
+        font-size: 19px;
+        font-weight: 600;
+        color: #222222;
+    }
+
+    .result-author {
+        font-size: 34px;
+        font-weight: 700;
+        color: #244c70;
+        margin: 10px 0;
+    }
+
+    .result-score {
+        font-size: 26px;
+        font-weight: 600;
+        color: #244c70;
+    }
+
+    .author-row {
+        display: flex;
+        direction: rtl;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 16px;
+        margin-top: 5px;
     }
 </style>
 """, unsafe_allow_html=True)
 
-st.title("📖 מי כתב את השיר?")
-st.subheader("Who Wrote It?")
 
-st.write(
-    "הדביקו שיר בעברית, "
-    "ורשת נוירונים תנסה לזהות מי כתב אותו "
-    "מבין שמונה משוררים."
+st.title("📖 מי כתב את השיר?")
+
+st.markdown(
+    "האם רשת נוירונים יכולה לזהות משורר "
+    "לפי סגנון הכתיבה שלו?"
 )
+
+st.markdown("""
+<div class="intro-box">
+    <b>המודל אומן לזהות שירים של שמונה משוררים:</b><br>
+    אברהם שלונסקי, דן אלמגור, חיים נחמן ביאליק,
+    יהודה הלוי, רחל בלובשטיין, רחל שפירא,
+    שאול טשרניחובסקי ושלמה אבן גבירול.
+    <br><br>
+    אפשר לנסות גם שיר של משורר אחר, או אפילו
+    שיר פרי עטכם, ולגלות לאיזה מסגנונות הכתיבה
+    הוא דומה, לפי הערכת הרשת.
+    <br><br>
+    <b>יש להזין לפחות 100 תווים,
+    ורצוי לפחות 16 שורות.</b>
+</div>
+""", unsafe_allow_html=True)
+
 
 poem = st.text_area(
     "מילות השיר",
-    height=300,
-    placeholder="הדביקו כאן את השיר, כולל מעברי השורות..."
+    height=320,
+    label_visibility="collapsed",
+    placeholder=(
+        "הדביקו כאן את השיר..."
+    )
 )
 
-if st.button("זהה את המשורר", type="primary"):
+if st.button(
+    "זהה את המשורר",
+    type="primary",
+    use_container_width=True
+):
 
     trimmed_text = re.sub(r"\d+", "", poem)
     trimmed_text = NIQQUD_PATTERN.sub("", trimmed_text)
@@ -185,32 +299,39 @@ if st.button("זהה את המשורר", type="primary"):
         order = np.argsort(probs)[::-1]
         best = order[0]
 
-        st.divider()
+        st.markdown(f"""
+        <div class="result-box">
+            <div class="result-label">
+                המשורר הסביר ביותר לפי המודל
+            </div>
+            <div class="result-author">
+                {authors[best]}
+            </div>
+            <div class="result-score">
+                {probs[best]:.1%}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
-        st.caption("המשורר הסביר ביותר לפי המודל")
-        st.header(authors[best])
-        st.metric(
-            "ציון המודל",
-            f"{probs[best]:.1%}"
-        )
-
-        st.subheader("כל המועמדים")
+        st.subheader("התאמה לסגנונות המשוררים")
 
         for idx in order:
-            st.progress(
-                float(probs[idx]),
-                text=f"{authors[idx]} — {probs[idx]:.1%}"
-            )
+            st.markdown(f"""
+            <div class="author-row">
+                <span>{authors[idx]}</span>
+                <span dir="ltr">{probs[idx]:.1%}</span>
+            </div>
+            """, unsafe_allow_html=True)
+
+            st.progress(float(probs[idx]))
 
         st.caption(f"זמן חיזוי: {elapsed:.3f} שניות")
 
-        st.info(
-            "המודל בוחר מבין שמונה משוררים בלבד. "
-            "ציוני המודל אינם הוכחה לזהות המחבר."
-        )
 
 st.divider()
 
-st.caption(
-    "Who Wrote It? | Python · PyTorch · Deep Learning"
+st.markdown(
+    "לקוד המקור ולמידע טכני: "
+    "[GitHub](https://github.com/amnonj/WhoWroteIt)"
 )
+
