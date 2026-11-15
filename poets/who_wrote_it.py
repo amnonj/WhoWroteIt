@@ -19,7 +19,6 @@ IN_FOLDER = '20261111-141613'
 MIN_TEXT_LENGTH = 50
 PAD = 0
 NIQQUD_PATTERN = re.compile(r"[\u0591-\u05BD\u05BF\u05C1-\u05C2\u05C4-\u05C5\u05C7]")
-PAD = 0
 
 # post_text = input('Enter post text: ')
 root = tk.Tk()

@@ -27,8 +27,8 @@ posts_stats = posts_by_author.agg(
 print(posts_stats)
 
 # Number of sampling regions per work
-INPUT_LENGTH = 384
-MAX_REGIONS_PER_WORK = 8
+INPUT_LENGTH = 768
+MAX_REGIONS_PER_WORK = 2
 
 filtered_posts_df["num_regions"] = np.minimum(
     MAX_REGIONS_PER_WORK,

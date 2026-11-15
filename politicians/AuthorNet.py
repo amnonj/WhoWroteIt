@@ -38,7 +38,6 @@ class AuthorNet(nn.Module):
         x1 = x[:,:,None,:].masked_fill(~padding_mask[:, None,:, :], torch.finfo(x.dtype).min)
         x1 = x1.max(dim=3).values
         x1 = x1.masked_fill(region_sizes[:, None, :] == 0, 0)
-        x1 = x1.masked_fill(region_sizes[:, None, :] == 0, 0)
         x2 = x[:,:,None,:].masked_fill(~padding_mask[:, None, :, :], 0)
         x2 = x2.sum(dim=3) / region_sizes[:, None, :].clamp(min=1)
         x = torch.cat((x1, x2), dim=1).flatten(1)
