@@ -15,8 +15,7 @@ from common import text_utils
 from poets import AuthorNet as an
 from poets import datasets
 from types import SimpleNamespace
-import winsound
-
+# import winsound
 
 
 for SEED in nn_config.SEED:
@@ -223,14 +222,14 @@ for SEED in nn_config.SEED:
         try:
             new_result.to_csv(results_file, index=False, encoding="utf-8-sig")
         except PermissionError:
-            for n in range(10):
-                winsound.Beep(400, 100)
-                time.sleep(0.1)
+#            for n in range(10):
+#                winsound.Beep(400, 100)
+#                time.sleep(0.1)
             input("Can't write results.csv. If it's open, close the window and press any key to retry")
         else:
             break
 
-winsound.Beep(400, 500)
+#winsound.Beep(400, 500)
 
 
 # model = AuthorNet()
