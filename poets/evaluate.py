@@ -12,7 +12,7 @@ from poets import datasets
 from types import SimpleNamespace
 import time
 
-IN_FOLDER = '20261108-113317'
+IN_FOLDER = '20261111-141613'
 DATA_SET = 'test'
 
 directory = os.path.join('experiments', IN_FOLDER)

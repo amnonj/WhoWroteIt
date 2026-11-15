@@ -1,4 +1,4 @@
-
+# Adapted to web application by AI
 import sys
 import time
 import json
