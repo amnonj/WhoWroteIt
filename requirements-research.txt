@@ -1,0 +1,14 @@
+# Research and training environment (CPU)
+# Core package versions match the published Streamlit application.
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+torch==2.14.1+cpu
+numpy==2.5.4
+pandas==3.0.6
+requests
+rapidfuzz
+scikit-learn
+scipy
+
+# Used by the earlier politicians analysis
+matplotlib

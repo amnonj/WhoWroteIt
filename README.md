@@ -4,6 +4,8 @@
 
 **[Try the interactive demo](https://who-wrote-it.streamlit.app/)**
 
+[Installation, reproduction instructions, and repository structure](RUNNING.md)
+
 ## Overview
 
 **Who Wrote It?** is a deep learning project that attempts to identify the author of a Hebrew poem based on its textual and structural characteristics.
@@ -131,6 +133,8 @@ The resulting feature vectors are concatenated and passed to a classification la
 
 The architecture was implemented directly in PyTorch using embedding, convolutional, pooling, dropout, and linear layers.
 
+The selected model contains **195,176 trainable parameters**, making it a relatively compact neural network with a serialized model size of less than 1 MB.
+
 ![Network architecture](images/architecture.svg)
 
 ## 4. Training and Experiments
@@ -219,6 +223,8 @@ The results support the usefulness of character-level and line-aware representat
 A publicly accessible web application is available to demonstrate the trained model.
 
 Users can enter a Hebrew poem, and the application preprocesses the text, constructs the 1D and 2D inputs, performs inference using the trained PyTorch model, and displays the predicted author, probability scores for all eight poets, and inference time.
+For long poems, the interactive application uses the beginning of the poem rather than the deterministic cropping procedure used for validation and test evaluation. The reported accuracy figures refer to the experimental evaluation protocol.
+
 
 **[Try the interactive demo (hosted on Streamlit)](https://who-wrote-it.streamlit.app/)**
 
@@ -256,5 +262,10 @@ This project illustrates several practical lessons from applied deep learning:
 The main objective was not only to develop an authorship classifier, but to gain practical experience with the complete **deep learning engineering process**: data preparation, architecture design, PyTorch implementation, training, controlled experimentation, model evaluation, and application development.
 
 ---
+## License
+
+The project's source code, documentation, trained model, and experimental results are freely available under the [MIT License](LICENSE).
+
+Third-party texts and datasets remain subject to their respective rights and terms of use.
 
 *Data source: [Project Ben-Yehuda](https://benyehuda.org/). Dataset redistribution and usage are subject to the source's applicable terms.*

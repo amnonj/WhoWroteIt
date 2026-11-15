@@ -43,7 +43,7 @@ labels = metrics[0]['labels']
 ###############  Written by AI ##################
 
 # Optimize weights of the selected ensemble (1-based net indices)
-WEIGHTED_NETS = (1, 2, 8, 9)
+WEIGHTED_NETS = (1, 2, 3, 4)
 N_FOLDS = 5
 
 assert SEGMENTS == ['']
